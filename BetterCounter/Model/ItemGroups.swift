@@ -15,7 +15,6 @@ final class ItemGroups: Equatable, Hashable, Identifiable {
         self.name = name
         self.color = color
     }
-    
     var hexColor: Color {
         Color(hex: self.color) ?? .gray
     }
@@ -29,6 +28,4 @@ final class ItemGroups: Equatable, Hashable, Identifiable {
         hasher.combine(name)
         hasher.combine(color)
     }
-    
-    
 }

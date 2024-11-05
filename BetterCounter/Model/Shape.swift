@@ -1,7 +1,9 @@
 import Combine
 import SwiftUI
 
+
 final class SmartRectangle: ObservableObject, Equatable {
+    @Published var idd: UUID = .init()
     @Published var position: CGSize
     @Published var countedItem: CountedItem
     @Published var itemGroups: [ItemGroups]
