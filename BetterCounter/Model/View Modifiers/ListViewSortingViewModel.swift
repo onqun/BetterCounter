@@ -8,6 +8,7 @@ class ListViewSortingViewModel: ObservableObject {
     @Published var groupedItems: [ItemGroups: [CountedItem]] = [:]
     @Published var expandedGroups: Set<UUID> = []
     @Published var searchText: String
+    
 
     var context: ModelContext
     var sortOrder: SortOrder

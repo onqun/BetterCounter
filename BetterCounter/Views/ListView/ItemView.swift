@@ -5,9 +5,11 @@ struct ItemView: View {
     @Environment(\.modelContext) private var context
     @State private var showingPopup = false
     @State private var newGroupName = ""
-    @State private var isShowingUpdatePopup = false  // New state to show the update popup
+    @State private var isShowingUpdatePopup = false
+    @State private var selectedGroup: ItemGroups?  // State to hold the selected group
 
     var item: CountedItem
+    var allGroups: [ItemGroups]  // Pass all available groups to the view
 
     var body: some View {
         HStack {
@@ -19,24 +21,22 @@ struct ItemView: View {
                         isShowingUpdatePopup = true
                     }
 
-                // Display the first group name, if available
-                if let firstGroup = item.itemGroups?.first {
-                    Button(action: {
-                        showingPopup = true
-                    }) {
-                        HStack {
-                            Text(firstGroup.name)
-                            Image(systemName: "chevron.down")
-                        }
-                        .font(.footnote)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 2)
-                        .background(
-                            Capsule()
-                                .fill(firstGroup.hexColor.opacity(0.2))
-                        )
+                // Dropdown menu for selecting groups
+                Picker("Select Group", selection: $selectedGroup) {
+                    ForEach(allGroups, id: \.self) { group in
+                        Text(group.name).tag(group as ItemGroups?)
                     }
-                    .contentShape(Rectangle())
+                }
+                .pickerStyle(MenuPickerStyle())  // Use MenuPickerStyle for a dropdown appearance
+                .onChange(of: selectedGroup) {
+                    if let newGroup = $0 {
+                        item.itemGroups = [newGroup]
+                        do {
+                            try context.save()
+                        } catch {
+                            print("Error saving context: \(error)")
+                        }
+                    }
                 }
             }
 
@@ -75,22 +75,6 @@ struct ItemView: View {
         .padding(.horizontal, 0) // Remove horizontal padding
         .background(Color.white) // Optional: Add a background to see the full width
 
-        // Popup overlay for group selection
-        if showingPopup {
-            Color.black.opacity(0.3)
-                .edgesIgnoringSafeArea(.all)
-                .onTapGesture {
-                    showingPopup = false
-                }
-
-            CustomPopupView(
-                showingPopup: $showingPopup,
-                newGroupName: $newGroupName,
-                item: item
-            )
-            .transition(.move(edge: .bottom))
-        }
-
         // Popup overlay for item update
         if isShowingUpdatePopup {
             NewItemPopupView(
@@ -108,14 +92,16 @@ struct ItemView: View {
 
     // Sample data
     let group1 = ItemGroups(name: "Group A", color: "#FF5733")
+    let group2 = ItemGroups(name: "Group B", color: "#33FF57")
     let item1 = CountedItem(countedItemName: "Sample Item", countedItemNumber: 10)
     item1.itemGroups = [group1]
 
     // Insert the samples into the preview container
     preview.container.mainContext.insert(group1)
+    preview.container.mainContext.insert(group2)
     preview.container.mainContext.insert(item1)
 
     // Return the view to preview
-    return ItemView(item: item1)
+    return ItemView(item: item1, allGroups: [group1, group2])  // Pass all available groups
         .modelContainer(preview.container)
 }

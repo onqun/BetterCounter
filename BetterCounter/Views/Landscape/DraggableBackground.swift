@@ -12,15 +12,16 @@ struct DraggableBackground: View {
             .gesture(
                 DragGesture()
                     .onChanged { value in
-                        // Update dragOffset while dragging
+                        // Apply only the current drag offset while dragging
                         dragOffset = value.translation
                     }
                     .onEnded { _ in
-                        // When drag ends, apply the offset to the permanent position
+                        // Add the dragOffset to backgroundPosition when drag ends
                         backgroundPosition.width += dragOffset.width
                         backgroundPosition.height += dragOffset.height
-                        dragOffset = .zero // Reset dragOffset
+                        dragOffset = .zero // Reset dragOffset after applying it
                     }
             )
+            .animation(.easeInOut(duration: 0.3), value: backgroundPosition) // Smooth animation when the background settles
     }
 }

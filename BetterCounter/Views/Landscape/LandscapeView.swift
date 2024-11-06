@@ -5,6 +5,8 @@ import SwiftData
 /// - Rectangles are automatically positioned in a grid layout on initialization.
 /// - Rectangles can be dragged freely around the canvas.
 struct LandscapeView: View {
+    
+    @Namespace private var namespace
     var countedItems: [CountedItem]
     @State private var backgroundPosition: CGSize = .zero  // Track background panning
     @State private var rectangles: [SmartRectangle] = []  // Store the SmartRectangle instances
@@ -30,22 +32,20 @@ struct LandscapeView: View {
                 )
 
             // Display the rectangles
-            ForEach(0..<rectangles.count, id: \.self) { index in
-                SmartRectangleView(rectangle: rectangles[index], allRectangles: rectangles)  // Pass allRectangles
-                    .offset(backgroundPosition)  // Apply background panning to all rectangles
-                    .gesture(
-                        DragGesture()
-                            .onChanged { value in
-                                withAnimation(.easeInOut) {
-                                    // Update rectangle's position as it's dragged
-                                    let newPosition = CGSize(
-                                        width: rectangles[index].position.width + value.translation.width,
-                                        height: rectangles[index].position.height + value.translation.height
-                                    )
-                                    rectangles[index].position = newPosition
+            ScrollView {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 100))]) {
+                    // Loop through rectangles and render SmartRectangleView
+                    ForEach(rectangles.indices, id: \.self) { index in
+                        SmartRectangleView(rectangle: rectangles[index], allRectangles: rectangles)
+                            .matchedGeometryEffect(id: rectangles[index].idd, in: namespace)
+                            .onTapGesture {
+                                withAnimation {
+                                    // Handle tap gesture, e.g., show details or edit
                                 }
                             }
-                    )
+                    }
+                }
+                .padding()
             }
 
             // Add RectangleEncircler and pass the background offset to it
@@ -62,15 +62,14 @@ struct LandscapeView: View {
 
     /// Sets up the initial rectangles with random positions.
     func setupRectangles() {
-        for item in countedItems {
+        rectangles = countedItems.map { item in
             let group = item.itemGroups?.first ?? ItemGroups(name: "No Group", color: "#CCCCCC")
-            let smartRectangle = SmartRectangle(
+            return SmartRectangle(
                 countedItem: item,
                 itemGroups: [group],
                 color: group.hexColor,
                 position: .zero  // Initialize with zero position
             )
-            rectangles.append(smartRectangle)
         }
     }
 

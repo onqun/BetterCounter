@@ -20,6 +20,7 @@ struct NewItemPopupView: View {
     @State private var itemCount: Int = 0
     @State private var itemGroupName = ""
     @State private var selectedGroups = Set<ItemGroups>()
+    
 
     // Automatically fetch all available `ItemGroups` from the SwiftData context
     @Query private var availableGroups: [ItemGroups]
@@ -167,3 +168,4 @@ struct NewItemPopupView: View {
 #Preview {
     NewItemPopupView(isShowing: .constant(true), mode: .add)
 }
+

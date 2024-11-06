@@ -1,26 +1,49 @@
 import SwiftUI
 
 /// A SwiftUI view that displays a draggable `SmartRectangle` and checks for collisions with other rectangles.
+/// An electric effect animation appears when rectangles are close to each other.
 struct SmartRectangleView: View {
     @ObservedObject var rectangle: SmartRectangle
     var allRectangles: [SmartRectangle]
     @State private var dragOffset: CGSize = .zero
+    @State private var showElectricEffect: Bool = false
+    @State private var showingPopup = false  // New state to show the update popup
+
 
     var body: some View {
         ZStack {
-            // Rectangle shape with dynamic border color based on collision state
+            // Rectangle shape
             Rectangle()
                 .fill(rectangle.color)
-                .frame(width: rectangle.rectangleSize.width, height: rectangle.rectangleSize.height) // Use the precomputed size
+                .frame(width: rectangle.rectangleSize.width, height: rectangle.rectangleSize.height)
                 .cornerRadius(8)
                 .shadow(radius: 5)
-                .border(rectangle.isTouching ? Color.yellow : Color.black, width: 2)  // Border color changes if touching
+                .border(rectangle.isTouching ? Color.yellow : Color.black, width: 2)
 
-            // Display item name and count in the center of the rectangle
+
+            // Item name and count
             VStack {
                 Text(rectangle.countedItem.countedItemName)
-                    .padding()
-
+                    .padding(.bottom, 10)
+                if let firstGroup = rectangle.countedItem.itemGroups?.first {
+                    Button(action: {
+                        showingPopup = true
+                    }) {
+                        HStack {
+                            Text(firstGroup.name)
+                            Image(systemName: "chevron.down")
+                        }
+                        .font(.footnote)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 2)
+                        .background(
+                            Capsule()
+                                .fill(firstGroup.hexColor.opacity(0.2))
+                        )
+                    }
+                    .contentShape(Rectangle())
+                }
+                
                 Text("\(rectangle.countedItem.countedItemNumber)")
                     .frame(width: 50, height: 50)
                     .background(Color.gray.opacity(0.2))
@@ -28,30 +51,23 @@ struct SmartRectangleView: View {
                     .padding(.top, 5)
             }
         }
-        .frame(width: rectangle.rectangleSize.width, height: rectangle.rectangleSize.height)  // Ensure size is consistent
-        .contentShape(Rectangle())  // Set the interactive area to match the rectangle's frame
+        .frame(width: rectangle.rectangleSize.width, height: rectangle.rectangleSize.height)
+        .contentShape(Rectangle())
         .offset(x: rectangle.position.width + dragOffset.width, y: rectangle.position.height + dragOffset.height)
         .gesture(
             DragGesture()
                 .onChanged { value in
-                    dragOffset = value.translation  // Update the drag offset
-
-                    // Calculate the new position during dragging
+                    dragOffset = value.translation
                     let newPosition = CGSize(
                         width: rectangle.position.width + dragOffset.width,
                         height: rectangle.position.height + dragOffset.height
                     )
-
-                    // Check for collisions with other rectangles
                     checkCollision(at: newPosition)
                 }
                 .onEnded { _ in
-                    // Apply the drag offset to the permanent position
                     rectangle.position.width += dragOffset.width
                     rectangle.position.height += dragOffset.height
-                    dragOffset = .zero  // Reset the drag offset
-
-                    // Perform a final collision check
+                    dragOffset = .zero
                     checkCollision(at: rectangle.position)
                 }
         )
@@ -64,44 +80,32 @@ struct SmartRectangleView: View {
         // Reset the `isTouching` state for all rectangles
         allRectangles.forEach { $0.isTouching = false }
 
-        // Check if the current rectangle intersects with any other rectangles
+        var collisionDetected = false
+
+        // Check for collisions
         for otherRect in allRectangles where otherRect !== rectangle {
             let otherFrame = CGRect(origin: CGPoint(x: otherRect.position.width, y: otherRect.position.height), size: otherRect.rectangleSize)
 
-            // If the two rectangles intersect, mark them as touching
             if currentFrame.intersects(otherFrame) {
-                // Update the `isTouching` state for both rectangles
+                collisionDetected = true
                 DispatchQueue.main.async {
                     rectangle.isTouching = true
                     otherRect.isTouching = true
                 }
             }
         }
+
+        // Show or hide electric effect based on collision
+        showElectricEffect = collisionDetected
     }
 }
 
+
 #Preview {
-    // Sample data for preview
-    let preview = Preview()
-
-    preview.addExamples(ItemGroups.sampleGroup)
-    preview.addExamples(CountedItem.sampleItems)
-
-    let items = CountedItem.sampleItems
-    let group = ItemGroups.sampleGroup.first!
-
-    // Associate groups with items for testing
-    items.forEach { $0.itemGroups = [group] }
-
-    // Initialize a SmartRectangle for the preview
-    let smartRectangle = SmartRectangle(
-        countedItem: items.first!,
-        itemGroups: [group],
-        color: group.hexColor,
-        position: CGSize(width: 150, height: 150)
-    )
-
-    return SmartRectangleView(rectangle: smartRectangle, allRectangles: [smartRectangle])
-        .padding()  // Adds padding around the preview for clarity
-        .modelContainer(preview.container)
+    let sampleItem = CountedItem(countedItemName: "Sample", countedItemNumber: 1)
+    let sampleGroup = ItemGroups(name: "Group", color: "#FF5733")
+    sampleItem.itemGroups = [sampleGroup]
+    let rectangle = SmartRectangle(countedItem: sampleItem, itemGroups: [sampleGroup], color: .blue, position: .zero)
+    
+    return SmartRectangleView(rectangle: rectangle, allRectangles: [rectangle])
 }

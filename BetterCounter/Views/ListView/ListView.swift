@@ -92,9 +92,9 @@ struct ListView: View {
                             .foregroundColor(.gray)
                     } else {
                         ForEach(filteredItems, id: \.id) { item in
-                            ItemView(item: item)
+                            // Pass allGroups argument to ItemView
+                            ItemView(item: item, allGroups: precomputedGroups)
                                 .onTapGesture {
-                                    // Set selectedItem and show update popup
                                     selectedItem = item
                                     isShowingUpdatePopup = true
                                 }
@@ -116,9 +116,9 @@ struct ListView: View {
         List {
             let sortedItems = sortedItemsList()
             ForEach(sortedItems, id: \.id) { item in
-                ItemView(item: item)
+                // Pass allGroups argument to ItemView
+                ItemView(item: item, allGroups: precomputedGroups)
                     .onTapGesture {
-                        // Set selectedItem and show update popup
                         selectedItem = item
                         isShowingUpdatePopup = true
                     }
