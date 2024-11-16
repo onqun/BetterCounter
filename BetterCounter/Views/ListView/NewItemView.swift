@@ -1,15 +1,6 @@
 import SwiftUI
 import SwiftData
 
-// MARK: - PopupMode Enum
-/// Enum to define the mode of the popup: either adding a new item or updating an existing one.
-enum PopupMode {
-    case add
-    case update
-}
-
-// MARK: - NewItemPopupView
-/// A view for adding or updating a `CountedItem`, with fields to enter item details and select groups.
 struct NewItemPopupView: View {
     @Binding var isShowing: Bool
     var mode: PopupMode
@@ -18,9 +9,10 @@ struct NewItemPopupView: View {
     @Environment(\.modelContext) private var context
     @State private var itemName: String = ""
     @State private var itemCount: Int = 0
-    @State private var itemGroupName = ""
-    @State private var selectedGroups = Set<ItemGroups>()
-    
+    @State private var newGroupName: String = ""
+    @State private var selectedGroups: Set<ItemGroups> = []
+    @State private var newGroupColor: Color = .blue
+    @State private var errorMessage: String?
 
     // Automatically fetch all available `ItemGroups` from the SwiftData context
     @Query private var availableGroups: [ItemGroups]
@@ -48,7 +40,7 @@ struct NewItemPopupView: View {
                 }
 
             // Popup content
-            VStack {
+            VStack(spacing: 20) {
                 Text(mode == .add ? "Add New Item" : "Update Item")
                     .font(.headline)
                     .padding()
@@ -66,38 +58,57 @@ struct NewItemPopupView: View {
                             Text("Count: \(itemCount)")
                         }
 
-                        // Group Name Field for adding new groups
-                        TextField("Add New Group", text: $itemGroupName, onCommit: {
-                            guard !itemGroupName.isEmpty else { return }
-                            do {
-                                try addGroup(newGroupName: itemGroupName, availableGroups: availableGroups, selectedGroups: &selectedGroups, context: context)
-                                itemGroupName = ""
-                            } catch {
-                                print("Failed to add group: \(error)")
+                        // Add New Group Section
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("Add New Group")
+                                .font(.subheadline)
+
+                            HStack {
+                                TextField("Group Name", text: $newGroupName)
+                                    .disableAutocorrection(true)
+                                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                                
+                                ColorPicker("", selection: $newGroupColor)
+                                    .labelsHidden()
                             }
-                        })
-                        .disableAutocorrection(true)
-                        .textFieldStyle(RoundedBorderTextFieldStyle())
+
+                            Button(action: {
+                                addNewGroup()
+                            }) {
+                                HStack {
+                                    Image(systemName: "plus.circle.fill")
+                                    Text("Add Group")
+                                }
+                                .padding()
+                                .frame(maxWidth: .infinity)
+                                .background(newGroupName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? Color.gray : Color.green.opacity(0.7))
+                                .foregroundColor(.white)
+                                .cornerRadius(8)
+                            }
+                            .disabled(newGroupName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        }
 
                         // List of Available Groups
-                        Section(header: Text("Groups")) {
-                            ForEach(availableGroups, id: \.self) { group in
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("Select Groups")
+                                .font(.subheadline)
+
+                            ForEach(availableGroups) { group in
                                 HStack {
                                     Text(group.name)
+                                        .padding(.horizontal, 8)
+                                        .padding(.vertical, 4)
+                                        .background(
+                                            Capsule()
+                                                .fill(group.groupColor.opacity(0.2))
+                                        )
                                     Spacer()
-                                    if selectedGroups.contains(group) {
-                                        Image(systemName: "checkmark.circle.fill")
-                                            .foregroundColor(.green)
-                                            .onTapGesture {
-                                                toggleGroup(group, selectedGroups: &selectedGroups)
-                                            }
-                                    } else {
-                                        Image(systemName: "circle")
-                                            .foregroundColor(.gray)
-                                            .onTapGesture {
-                                                toggleGroup(group, selectedGroups: &selectedGroups)
-                                            }
-                                    }
+                                    Image(systemName: selectedGroups.contains(group) ? "checkmark.circle.fill" : "circle")
+                                        .foregroundColor(selectedGroups.contains(group) ? .green : .gray)
+                                        .onTapGesture {
+                                            toggleGroupSelection(group)
+                                        }
+                                        .contentShape(Rectangle())
                                 }
                             }
                         }
@@ -105,40 +116,29 @@ struct NewItemPopupView: View {
                     .padding()
                 }
 
+                // Error Message Display
+                if let errorMessage = errorMessage {
+                    Text(errorMessage)
+                        .foregroundColor(.red)
+                        .padding(.horizontal)
+                }
+
                 // Action Buttons: Add/Update and Cancel
                 HStack {
                     Button(mode == .add ? "Add" : "Update") {
                         Task {
                             if mode == .add {
-                                // Logic for adding a new item
-                                let newItem = CountedItem(countedItemName: itemName, countedItemNumber: itemCount)
-                                do {
-                                    try configureAndSaveItem(newItem: newItem, context: context, selectedGroups: selectedGroups) { item, _, _, groups in
-                                        item.itemGroups = Array(groups)
-                                    }
-                                    isShowing = false
-                                } catch {
-                                    print("Failed to save item: \(error)")
-                                }
+                                addItem()
                             } else if mode == .update, let item = itemToUpdate {
-                                // Logic for updating an existing item
-                                item.countedItemName = itemName
-                                item.countedItemNumber = itemCount
-                                item.itemGroups = Array(selectedGroups)
-                                do {
-                                    try context.save()
-                                    isShowing = false
-                                } catch {
-                                    print("Failed to update item: \(error)")
-                                }
+                                updateItem(item)
                             }
                         }
                     }
                     .padding()
-                    .background(Color.blue)
+                    .background((itemName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) ? Color.gray : Color.blue)
                     .foregroundColor(.white)
                     .cornerRadius(8)
-                    .disabled(itemName.isEmpty) // Disable if the item name is empty
+                    .disabled(itemName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
 
                     Button("Cancel") {
                         isShowing = false
@@ -154,7 +154,7 @@ struct NewItemPopupView: View {
             .background(Color.white)
             .cornerRadius(12)
             .shadow(radius: 20)
-            .frame(maxWidth: 350, maxHeight: 400)
+            .frame(maxWidth: 350, maxHeight: 600)
             .onAppear {
                 if mode == .update {
                     setupItemForUpdate()
@@ -162,10 +162,70 @@ struct NewItemPopupView: View {
             }
         }
     }
-}
 
-// MARK: - Preview
-#Preview {
-    NewItemPopupView(isShowing: .constant(true), mode: .add)
-}
+    // MARK: - Functions
 
+    /// Toggles the selection of a group
+    private func toggleGroupSelection(_ group: ItemGroups) {
+        if selectedGroups.contains(group) {
+            selectedGroups.remove(group)
+        } else {
+            selectedGroups.insert(group)
+        }
+    }
+
+    /// Adds a new group after validating its uniqueness
+    private func addNewGroup() {
+        do {
+            let groupManager = GroupManager(context: context)
+            let colorHex = newGroupColor.toHexString() ?? "#000000"
+            let newGroup = try groupManager.createGroup(name: newGroupName, color: colorHex)
+            selectedGroups.insert(newGroup)
+            newGroupName = ""
+            newGroupColor = .blue
+            errorMessage = nil
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    /// Adds a new item with the selected groups
+    private func addItem() {
+        let trimmedName = itemName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty else {
+            errorMessage = "Item name cannot be empty."
+            return
+        }
+
+        let newItem = CountedItem(countedItemName: trimmedName, countedItemNumber: itemCount)
+        newItem.itemGroups = Array(selectedGroups)
+        context.insert(newItem)
+
+        do {
+            try context.save()
+            isShowing = false
+        } catch {
+            errorMessage = "Failed to save item: \(error.localizedDescription)"
+        }
+    }
+
+    /// Updates an existing item with the selected groups
+    private func updateItem(_ item: CountedItem) {
+        let trimmedName = itemName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty else {
+            errorMessage = "Item name cannot be empty."
+            return
+        }
+
+        item.countedItemName = trimmedName
+        item.countedItemNumber = itemCount
+        item.itemGroups = Array(selectedGroups)
+
+        do {
+            try context.save()
+            isShowing = false
+        } catch {
+            errorMessage = "Failed to update item: \(error.localizedDescription)"
+        }
+    }
+}

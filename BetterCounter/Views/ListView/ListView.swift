@@ -6,24 +6,16 @@ struct ListView: View {
     @State private var sortDirection = SortDirection.ascending
     @State private var selectedGroup: ItemGroups?
     @State private var searchText: String = ""
-    @State private var isGroupingEnabled = true
     @State private var isShowingNewItemPopup = false
     @State private var isShowingUpdatePopup = false
-    @State private var selectedItem: CountedItem? // Added selectedItem for updates
+    @Binding var presentSideMenu: Bool
+    @State private var selectedItem: CountedItem?
+    @State private var cachedFilteredAndSortedItems: [CountedItem] = []
 
     @Environment(\.modelContext) private var context
 
-    @Query(sort: \CountedItem.countedItemName) private var items: [CountedItem]
+    @Query private var items: [CountedItem]
     @Query private var precomputedGroups: [ItemGroups]
-
-    private var precomputedGroupCounts: [ItemGroups: Int] {
-        var counts: [ItemGroups: Int] = [:]
-        for group in precomputedGroups {
-            let count = items.filter { $0.itemGroups?.contains(group) ?? false }.count
-            counts[group] = count
-        }
-        return counts
-    }
 
     var body: some View {
         NavigationStack {
@@ -33,10 +25,9 @@ struct ListView: View {
                         SortOptionsView(sortOrder: $sortOrder, sortDirection: $sortDirection)
                         GroupOptionsView(
                             selectedGroup: $selectedGroup,
-                            isGroupingEnabled: $isGroupingEnabled,
                             items: items,
                             precomputedGroups: precomputedGroups,
-                            precomputedGroupCounts: precomputedGroupCounts
+                            precomputedGroupCounts: precomputedGroupCounts()
                         )
                     }
                     .padding()
@@ -45,26 +36,37 @@ struct ListView: View {
                         .textFieldStyle(RoundedBorderTextFieldStyle())
                         .padding(.horizontal, 50)
 
-                    if isGroupingEnabled {
-                        groupedListView()
-                    } else {
-                        ungroupedListView()
-                    }
+                    // Adjusted the view logic
+                    itemListView()
                 }
                 .navigationTitle("My List")
                 .toolbar {
-                    ToolbarItem(placement: .navigationBarTrailing) {
+                    ToolbarItemGroup(placement: .navigationBarTrailing) {
                         Button(action: {
                             isShowingNewItemPopup = true
                         }) {
                             Image(systemName: "plus.circle.fill")
                         }
-                    }
-                    ToolbarItem(placement: .navigationBarTrailing) {
-                        Button(action: { /* Settings action */ }) {
+                        
+                        Button(action: {
+                            presentSideMenu.toggle()
+                        }) {
                             Image(systemName: "gear")
                         }
                     }
+                }
+                .onAppear(perform: updateFilteredAndSortedItems)
+                .onChange(of: searchText) { _ in
+                    updateFilteredAndSortedItems()
+                }
+                .onChange(of: sortOrder) { _ in
+                    updateFilteredAndSortedItems()
+                }
+                .onChange(of: sortDirection) { _ in
+                    updateFilteredAndSortedItems()
+                }
+                .onReceive(items.publisher.collect()) { _ in
+                    updateFilteredAndSortedItems()
                 }
 
                 if isShowingNewItemPopup {
@@ -81,66 +83,98 @@ struct ListView: View {
     }
 
     @ViewBuilder
-    func groupedListView() -> some View {
-        List {
-            ForEach(precomputedGroups, id: \.self) { group in
-                Section(header: Text(group.name)) {
-                    let filteredItems = itemsForGroup(group)
-                    if filteredItems.isEmpty {
-                        Text("No items in this group")
-                            .font(.footnote)
-                            .foregroundColor(.gray)
-                    } else {
-                        ForEach(filteredItems, id: \.id) { item in
-                            // Pass allGroups argument to ItemView
-                            ItemView(item: item, allGroups: precomputedGroups)
-                                .onTapGesture {
-                                    selectedItem = item
-                                    isShowingUpdatePopup = true
-                                }
+    func itemListView() -> some View {
+        if let selectedGroup = selectedGroup {
+            // Display items filtered by the selected group
+            let filteredItems = cachedFilteredAndSortedItems.filter { item in
+                item.itemGroups?.contains(selectedGroup) ?? false
+            }
+            if filteredItems.isEmpty {
+                Text("No items in this group")
+                    .font(.footnote)
+                    .foregroundColor(.gray)
+            } else {
+                List {
+                    ForEach(filteredItems, id: \.id) { item in
+                        ItemView(item: item, allGroups: precomputedGroups)
+                            .onTapGesture {
+                                selectedItem = item
+                                isShowingUpdatePopup = true
+                            }
+                    }
+                    .onDelete { indexSet in
+                        Task {
+                            await handleDelete(at: indexSet, from: filteredItems)
                         }
-                        .onDelete { indexSet in
-                            Task {
-                                await handleDelete(at: indexSet, from: filteredItems)
+                    }
+                }
+                .listStyle(.plain)
+            }
+        } else {
+            // Display all items grouped by their groups
+            let groupedItems = groupItemsByGroups()
+            let sortedGroupKeys = groupedItems.keys.sorted(by: { $0.name < $1.name })
+
+            if groupedItems.isEmpty {
+                Text("No items available")
+                    .font(.footnote)
+                    .foregroundColor(.gray)
+            } else {
+                List {
+                    ForEach(sortedGroupKeys, id: \.id) { group in
+                        Section(header: Text(group.name)) {
+                            let itemsInGroup = groupedItems[group] ?? []
+                            ForEach(itemsInGroup, id: \.id) { item in
+                                ItemView(item: item, allGroups: precomputedGroups)
+                                    .onTapGesture {
+                                        selectedItem = item
+                                        isShowingUpdatePopup = true
+                                    }
+                            }
+                            .onDelete { indexSet in
+                                Task {
+                                    await handleDelete(at: indexSet, from: itemsInGroup)
+                                }
                             }
                         }
                     }
                 }
+                .listStyle(.insetGrouped)
             }
         }
-        .listStyle(.plain)
     }
 
-    @ViewBuilder
-    func ungroupedListView() -> some View {
-        List {
-            let sortedItems = sortedItemsList()
-            ForEach(sortedItems, id: \.id) { item in
-                // Pass allGroups argument to ItemView
-                ItemView(item: item, allGroups: precomputedGroups)
-                    .onTapGesture {
-                        selectedItem = item
-                        isShowingUpdatePopup = true
-                    }
-            }
-            .onDelete { indexSet in
-                Task {
-                    await handleDelete(at: indexSet, from: sortedItems)
+    func updateFilteredAndSortedItems() {
+        cachedFilteredAndSortedItems = filteredAndSortedItems()
+    }
+
+    func groupItemsByGroups() -> [ItemGroups: [CountedItem]] {
+        var groupedItems: [ItemGroups: [CountedItem]] = [:]
+
+        let ungroupedGroup = ItemGroups.ungroupedGroup
+
+        let itemsToGroup = cachedFilteredAndSortedItems
+
+        for item in itemsToGroup {
+            let groups = item.itemGroups ?? []
+            if groups.isEmpty {
+                groupedItems[ungroupedGroup, default: []].append(item)
+            } else {
+                for group in groups {
+                    groupedItems[group, default: []].append(item)
                 }
             }
         }
-        .listStyle(.plain)
+
+        return groupedItems
     }
 
-    func itemsForGroup(_ group: ItemGroups) -> [CountedItem] {
-        return items.filter { item in
-            item.itemGroups?.contains(group) ?? false &&
-            (searchText.isEmpty || item.countedItemName.localizedCaseInsensitiveContains(searchText))
+    func filteredAndSortedItems() -> [CountedItem] {
+        let filteredItems = items.filter { item in
+            searchText.isEmpty || item.countedItemName.localizedCaseInsensitiveContains(searchText)
         }
-    }
 
-    func sortedItemsList() -> [CountedItem] {
-        return items.sorted { (lhs: CountedItem, rhs: CountedItem) in
+        return filteredItems.sorted { lhs, rhs in
             switch sortOrder {
             case .name:
                 return sortDirection == .ascending ? lhs.countedItemName < rhs.countedItemName : lhs.countedItemName > rhs.countedItemName
@@ -148,6 +182,15 @@ struct ListView: View {
                 return sortDirection == .ascending ? lhs.countedItemNumber < rhs.countedItemNumber : lhs.countedItemNumber > rhs.countedItemNumber
             }
         }
+    }
+
+    func precomputedGroupCounts() -> [ItemGroups: Int] {
+        var counts: [ItemGroups: Int] = [:]
+        for group in precomputedGroups {
+            let count = items.filter { $0.itemGroups?.contains(group) ?? false }.count
+            counts[group] = count
+        }
+        return counts
     }
 
     func handleDelete(at offsets: IndexSet, from itemList: [CountedItem]) async {
@@ -162,16 +205,4 @@ struct ListView: View {
             print("Failed to save context after deletion: \(error)")
         }
     }
-}
-
-#Preview {
-    let preview = Preview()
-    let items = CountedItem.sampleItems
-    let itemGroups = ItemGroups.sampleGroup
-
-    preview.addExamples(items)
-    preview.addExamples(itemGroups)
-
-    return ListView()
-        .modelContainer(preview.container)
 }

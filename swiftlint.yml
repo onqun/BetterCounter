@@ -1,78 +1,92 @@
-{\rtf1\ansi\ansicpg1252\cocoartf2820
-\cocoatextscaling0\cocoaplatform0{\fonttbl\f0\fswiss\fcharset0 Helvetica;}
-{\colortbl;\red255\green255\blue255;}
-{\*\expandedcolortbl;;}
-\paperw11900\paperh16840\margl1440\margr1440\vieww17280\viewh13200\viewkind0
-\pard\tx566\tx1133\tx1700\tx2267\tx2834\tx3401\tx3968\tx4535\tx5102\tx5669\tx6236\tx6803\pardirnatural\partightenfactor0
+# swiftlint.yml
 
-\f0\fs36 \cf0 # Disable rules that are too strict or unnecessary for your project\
-disabled_rules:\
-  - force_cast           # Avoid force casting; use safer alternatives\
-  - force_try            # Avoid force-try; handle errors explicitly\
-  - file_length          # Disable file length warnings if you have large files\
-  - type_body_length     # Allow longer class/struct/enum bodies if needed\
-\
-# Opt-in rules to enforce more strict coding standards\
-opt_in_rules:\
-  - closure_spacing      # Enforces spacing around closures\
-  - contains_over_filter_count # Prefer using `contains` over `filter \{ \}.count > 0`\
-  - empty_count          # Enforce using `isEmpty` over `count == 0`\
-  - explicit_init        # Require explicit initializers\
-  - multiline_arguments_brackets # Enforce consistent use of brackets for multi-line arguments\
-\
-# Exclude specific paths from linting\
-excluded:\
-  - Pods                 # Ignore generated files from dependencies\
-  - Carthage\
-  - .build               # Ignore build artifacts\
-  - Generated            # Ignore auto-generated code\
-\
-# Custom rules for line length and code complexity\
-line_length:\
-  warning: 100           # Warn if lines exceed 100 characters\
-  error: 120             # Error if lines exceed 120 characters\
-  ignores_comments: true # Ignore comments for line length\
-  ignores_interpolated_strings: true # Ignore string interpolation for line length\
-\
-# Enforce the use of spaces for indentation\
-indentation:\
-  indent_width: 4        # Use 4 spaces for indentation\
-  allow_tabs: false      # Disallow tabs\
-\
-# Function and type complexity limits\
-function_body_length:\
-  warning: 40            # Warn if a function body exceeds 40 lines\
-  error: 60              # Error if a function body exceeds 60 lines\
-\
-type_body_length:\
-  warning: 300           # Warn if a type body exceeds 300 lines\
-  error: 400             # Error if a type body exceeds 400 lines\
-\
-# Enforce consistent spacing and style\
-trailing_whitespace:\
-  ignores_empty_lines: true # Allow empty lines with whitespace\
-\
-# Require the use of self for clarity\
-self_required:\
-  - instance_variable\
-\
-# Customize cyclomatic complexity rule\
-cyclomatic_complexity:\
-  warning: 10            # Warn if a function has a complexity of 10\
-  error: 15              # Error if a function has a complexity of 15\
-\
-# Specify which types of todos to warn about\
-todo:\
-  warning: "TODO"        # Warn on TODO comments\
-  warning: "FIXME"       # Warn on FIXME comments\
-\
-# Enforce the use of NSLocalizedString for localization\
-nslocalizedstring_key: true\
-\
-# Customize the number of parameters allowed in a function\
-function_parameter_count:\
-  warning: 5             # Warn if a function has more than 5 parameters\
-  error: 8               # Error if a function has more than 8 parameters\
-\
-# Customize SwiftLint's behavior\
-reporter: "xcode"        # Use the Xcode reporter for easy integration with Xcode}
+# Define which files and directories to include or exclude
+included:
+  - .  # Include all directories and files
+
+excluded:
+  - Pods                 # Ignore generated files from dependencies
+  - Carthage
+  - .build               # Ignore build artifacts
+  - Generated            # Ignore auto-generated code
+  - Source/ExcludedDirectory
+
+# Disable rules that are too strict or unnecessary for your project
+disabled_rules:
+  - force_cast           # Avoid force casting; use safer alternatives
+  - force_try            # Avoid force-try; handle errors explicitly
+  - file_length          # Disable file length warnings if you have large files
+  - trailing_whitespace  # Disable trailing whitespace warnings
+  - line_length          # Disable line length warnings (configure separately)
+
+# Opt-in rules to enforce more strict coding standards
+opt_in_rules:
+  - closure_spacing                      # Enforces spacing around closures
+  - contains_over_filter_count           # Prefer using `contains` over `filter { }.count > 0`
+  - empty_count                          # Enforce using `isEmpty` over `count == 0`
+  - explicit_init                        # Require explicit initializers
+  - multiline_arguments_brackets          # Enforce consistent use of brackets for multi-line arguments
+  - implicit_return                      # Opt-in to implicit return in single-expression functions
+
+# Customize rule parameters
+line_length:
+  warning: 120            # Warn if lines exceed 120 characters
+  error: 150              # Error if lines exceed 150 characters
+  ignores_comments: true  # Ignore comments for line length
+  ignores_urls: true      # Ignore URLs for line length
+
+type_body_length:
+  warning: 250           # Warn if a type body exceeds 250 lines
+  error: 350             # Error if a type body exceeds 350 lines
+  ignores_protocols: true # Ignore protocols for type body length
+
+function_body_length:
+  warning: 40            # Warn if a function body exceeds 40 lines
+  error: 60              # Error if a function body exceeds 60 lines
+
+indentation_width:
+  width: 4               # Use 4 spaces for indentation
+  ignores_comments: false
+  ignores_empty_lines: false
+
+trailing_whitespace:
+  ignores_empty_lines: true # Allow empty lines with whitespace
+
+cyclomatic_complexity:
+  warning: 10            # Warn if a function has a complexity of 10
+  error: 15              # Error if a function has a complexity of 15
+
+todo:
+  severity: warning      # Set severity level for todo comments
+  identifiers:
+    - TODO
+    - FIXME
+
+function_parameter_count:
+  warning: 5             # Warn if a function has more than 5 parameters
+  error: 8               # Error if a function has more than 8 parameters
+
+# Define custom rules (if any)
+custom_rules:
+  no_force_unwrapping:
+    included: ".*\\.swift" # Regex to match Swift files
+    name: "No Force Unwrapping"
+    regex: "(!)"
+    message: "Avoid using force unwrapping (!). Use conditional binding or optional chaining instead."
+    severity: error
+    
+  nslocalizedstring_key:
+    included: ".*\\.swift"
+    name: "NSLocalizedString Key"
+    regex: "NSLocalizedString\\(\".*\""
+    message: "Use NSLocalizedString with proper keys for localization."
+    severity: warning
+
+# Reporters to use
+reporter:
+  - console
+  - emoji
+  - json
+
+# Additional configurations
+cache_directory: ~/Library/Caches/com.github.swiftlint

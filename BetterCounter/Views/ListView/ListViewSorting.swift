@@ -1,8 +1,9 @@
+// ListViewSorting.swift
+
 import SwiftUI
 import SwiftData
 
 // MARK: - ListViewSorting
-/// The main view that displays items sorted and grouped, using a ViewModel.
 struct ListViewSorting: View {
     @StateObject private var viewModel: ListViewSortingViewModel
 
@@ -20,66 +21,78 @@ struct ListViewSorting: View {
                     ItemListView(viewModel: viewModel)
                 }
             }
+            .navigationTitle("BetterCounter")
+            .toolbar {
+                // Add toolbar items here if needed
+            }
         }
     }
 }
 
 // MARK: - ItemListView
-/// A separate view for rendering the list of items.
 struct ItemListView: View {
     @ObservedObject var viewModel: ListViewSortingViewModel
 
     var body: some View {
         List {
             ForEach(viewModel.groupedItems.keys.sorted(by: { $0.name < $1.name }), id: \.self) { group in
-                GroupDisclosureView(group: group, viewModel: viewModel)
+                GroupDisclosureView(group: group, viewModel: viewModel, allGroups: viewModel.allGroups)
             }
         }
         .listStyle(.plain)
     }
 }
 
+// MARK: - GroupDisclosureView
 struct GroupDisclosureView: View {
     let group: ItemGroups
     @ObservedObject var viewModel: ListViewSortingViewModel
+    var allGroups: [ItemGroups] // Ensure this property is correctly passed
 
     var body: some View {
         DisclosureGroup(
             isExpanded: Binding(
-                get: {
-                    viewModel.expandedGroups.contains(group.id)
-                },
-                set: { isExpanded in
-                    viewModel.toggleGroupExpansion(for: group.id, isExpanded: isExpanded)
-                }
+                get: { viewModel.expandedGroups.contains(group.id) },
+                set: { isExpanded in viewModel.toggleGroupExpansion(for: group.id, isExpanded: isExpanded) }
             )
         ) {
             ForEach(viewModel.groupedItems[group] ?? []) { item in
-                // Pass the array of ItemGroups directly
-                ItemView(item: item, allGroups: Array(viewModel.groupedItems.keys))
+                ItemView(item: item)
             }
         } label: {
             Text("\(group.name) (\(viewModel.groupedItems[group]?.count ?? 0))")
+                .font(.headline)
         }
     }
 }
 
+// MARK: - ItemView
+struct ItemView: View {
+    let item: CountedItem
+
+    var body: some View {
+        HStack {
+            Text(item.countedItemName)
+                .font(.body)
+            Spacer()
+            Text("Count: \(item.countedItemNumber)")
+                .font(.subheadline)
+                .foregroundColor(.gray)
+        }
+        .padding(.vertical, 4)
+    }
+}
+
 // MARK: - Preview
-#Preview {
-    let preview = Preview()
-
-    // Sample data
-    let group1 = ItemGroups(name: "Group A", color: "#FF5733")
-    let group2 = ItemGroups(name: "Group B", color: "#33FF57")
-    let item1 = CountedItem(countedItemName: "Sample Item", countedItemNumber: 10)
-    item1.itemGroups = [group1]
-
-    // Insert the samples into the preview container
-    preview.container.mainContext.insert(group1)
-    preview.container.mainContext.insert(group2)
-    preview.container.mainContext.insert(item1)
-
-    // Return the view to preview
-    return ItemView(item: item1, allGroups: [group1, group2])  // Pass all available groups
-        .modelContainer(preview.container)
+struct ListViewSorting_Previews: PreviewProvider {
+    static var previews: some View {
+        // Using the user's defined sample sets for preview
+        ListViewSorting(
+            context: ModelContainer(for: ItemGroups.self, CountedItem.self).mainContext,
+            sortOrder: .name,
+            sortDirection: .ascending,
+            selectedGroup: ItemGroups.sampleGroup.first,
+            searchText: ""
+        )
+    }
 }

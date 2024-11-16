@@ -6,41 +6,93 @@ struct ItemView: View {
     @State private var showingPopup = false
     @State private var newGroupName = ""
     @State private var isShowingUpdatePopup = false
-    @State private var selectedGroup: ItemGroups?  // State to hold the selected group
+    @State private var selectedGroups: Set<ItemGroups>
 
     var item: CountedItem
-    var allGroups: [ItemGroups]  // Pass all available groups to the view
+    var allGroups: [ItemGroups]
+
+    init(item: CountedItem, allGroups: [ItemGroups]) {
+        self.item = item
+        self.allGroups = allGroups
+        // Ensure item.itemGroups is initialized
+        if item.itemGroups == nil {
+            item.itemGroups = []
+        }
+        // Initialize selectedGroups with the item's existing groups
+        _selectedGroups = State(initialValue: Set(item.itemGroups ?? []))
+    }
 
     var body: some View {
         HStack {
-            VStack(alignment: .leading) {
-                // Display item name
-                Text(item.countedItemName)
-                    .font(.subheadline)
-                    .onTapGesture(count: 2) {  // Double-tap gesture to show update popup
-                        isShowingUpdatePopup = true
-                    }
-
-                // Dropdown menu for selecting groups
-                Picker("Select Group", selection: $selectedGroup) {
-                    ForEach(allGroups, id: \.self) { group in
-                        Text(group.name).tag(group as ItemGroups?)
-                    }
-                }
-                .pickerStyle(MenuPickerStyle())  // Use MenuPickerStyle for a dropdown appearance
-                .onChange(of: selectedGroup) {
-                    if let newGroup = $0 {
-                        item.itemGroups = [newGroup]
-                        do {
-                            try context.save()
-                        } catch {
-                            print("Error saving context: \(error)")
-                        }
+            // Display color circles next to item name if multiple groups
+            if let itemGroups = item.itemGroups, itemGroups.count > 1 {
+                HStack(spacing: 4) {
+                    ForEach(itemGroups, id: \.self) { group in
+                        Circle()
+                            .fill(group.hexColor)
+                            .frame(width: 12, height: 12)
                     }
                 }
             }
 
-            Spacer()
+            VStack(alignment: .leading, spacing: 5) {
+                // Display item name
+                Text(item.countedItemName)
+                    .font(.subheadline)
+                    .onTapGesture(count: 2) {
+                        isShowingUpdatePopup = true
+                    }
+
+                // Custom Menu for selecting groups with checkmarks
+                Menu {
+                    ForEach(allGroups, id: \.self) { group in
+                        Button(action: {
+                            // Toggle group selection
+                            if let index = item.itemGroups?.firstIndex(of: group) {
+                                // Group is already selected; remove it
+                                item.itemGroups?.remove(at: index)
+                            } else {
+                                // Group is not selected; add it
+                                item.itemGroups?.append(group)
+                            }
+                            // Update the selected groups set
+                            selectedGroups = Set(item.itemGroups ?? [])
+                            // Save the context
+                            do {
+                                try context.save()
+                            } catch {
+                                print("Error saving context: \(error)")
+                            }
+                        }) {
+                            HStack {
+                                Text(group.name)
+                                Spacer()
+                                if let itemGroups = item.itemGroups, itemGroups.contains(group) {
+                                    Image(systemName: "checkmark")
+                                }
+                            }
+                        }
+                    }
+                } label: {
+                    // Menu label with conditional background color
+                    HStack(spacing: 4) {
+                        Text(item.itemGroups?.isEmpty ?? true ? "Select Groups" : item.itemGroups!.map { $0.name }.joined(separator: ", "))
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 12, weight: .bold))
+                    }
+                    .font(.caption)
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(
+                        // Change background color if only one group
+                        (item.itemGroups?.count == 1 ? item.itemGroups?.first?.hexColor : Color.blue) ?? Color.blue
+                    )
+                    .clipShape(Capsule())
+                }
+            }
+
+            Spacer(minLength: 10)
 
             // Display and update item count
             Text("\(item.countedItemNumber)")
@@ -71,9 +123,9 @@ struct ItemView: View {
                         )
                 )
         }
-        .frame(maxWidth: .infinity, alignment: .leading) // Make the HStack fill the width
-        .padding(.horizontal, 0) // Remove horizontal padding
-        .background(Color.white) // Optional: Add a background to see the full width
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 0)
+        .background(Color.white)
 
         // Popup overlay for item update
         if isShowingUpdatePopup {
@@ -102,6 +154,6 @@ struct ItemView: View {
     preview.container.mainContext.insert(item1)
 
     // Return the view to preview
-    return ItemView(item: item1, allGroups: [group1, group2])  // Pass all available groups
+    return ItemView(item: item1, allGroups: [group1, group2])
         .modelContainer(preview.container)
 }

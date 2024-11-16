@@ -1,31 +1,37 @@
+// ItemGroups.swift
+
 import SwiftUI
 import SwiftData
 
-// Make ItemGroups conform to Equatable
 @Model
-final class ItemGroups: Equatable, Hashable, Identifiable {
-    
-    var id: UUID = UUID() // Ensure the identifier is of type UUID
-    var name: String
+final class ItemGroups: Hashable, Equatable {
+    let id: PersistentIdentifier
+    let name: String
     var color: String
-    var items: [CountedItem]?
-    
-    // Mark the initializer as 'required'
+    var items: [CountedItem]? // Relationship to CountedItem
+
+    // Initializer
     required init(name: String, color: String) {
+        self.id = PersistentIdentifier()
         self.name = name
         self.color = color
     }
-    var hexColor: Color {
-        Color(hex: self.color) ?? .gray
-    }
-    
+
     // Equatable conformance
     static func == (lhs: ItemGroups, rhs: ItemGroups) -> Bool {
-        return lhs.name == rhs.name && lhs.color == rhs.color
+        return lhs.id == rhs.id
     }
-    // Hashable conformance to enable ItemGroups usage in sets or dictionaries
+
+    // Hashable conformance
     func hash(into hasher: inout Hasher) {
-        hasher.combine(name)
-        hasher.combine(color)
+        hasher.combine(id)
     }
+
+    // Computed property for Color representation
+    var groupColor: Color {
+        Color(hex: color) ?? .gray
+    }
+
+    // Static ungrouped group
+    static let ungroupedGroup = ItemGroups(name: "Ungrouped", color: "#FFFFFF")
 }

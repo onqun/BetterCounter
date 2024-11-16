@@ -7,16 +7,19 @@
 
 import Foundation
 
+// GroupSamples.swift
+
+import Foundation
+
 extension ItemGroups {
     
     static var sampleGroup: [ItemGroups] {
         [
-        ItemGroups(name:  "Lab", color: "00FF00"),
-        ItemGroups(name:  "ders", color: "0000FF"),
-        ItemGroups(name:  "Homecat", color: "FF0000"),
-        ItemGroups(name:  "Stem", color: "00FF00")
+            ItemGroups(name: "Lab", color: "#00FF00"),
+            ItemGroups(name: "Ders", color: "#0000FF"),
+            ItemGroups(name: "Homecat", color: "#FF0000"),
+            ItemGroups(name: "Stem", color: "#00FF00")
         ]
-   
     }
     
 }

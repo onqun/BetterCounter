@@ -7,7 +7,7 @@ struct ContentView: View {
         Group {
             switch orientationManager.orientation {
             case .portrait:
-                ListView()  // Show ListView for portrait orientation
+                ListView(presentSideMenu: .constant(false))  // Show ListView for portrait orientation
             case .landscape:
                 LandscapeView(countedItems: countedItems)  // Show LandscapeView for general landscape
             case .landscapeLeftWithCameraUp:
